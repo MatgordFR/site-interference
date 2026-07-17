@@ -1,0 +1,59 @@
+/* Palette DÉCLARÉE avant la 1re ligne (règle du 17/07) :
+   fond = bleu-nuit profond DÉGRADÉ (pas un near-black plat), accent = AUCUN.
+   Toute la couleur vient de la MATIÈRE (iridescence physique), jamais d'un accent posé.
+   Diverge de : Forno (braise mate), Sillage (porcelaine), et des 3 brûlés near-black+vert. */
+
+@font-face{font-family:"Space Grotesk";src:url("../fonts/space-grotesk.woff2") format("woff2");
+  font-weight:300 700;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url("../fonts/jetbrains-mono.woff2") format("woff2");
+  font-weight:100 800;font-display:swap}
+
+:root{
+  --ink:#eae7f2;
+  --dim:rgba(234,231,242,.3);
+  --pad:clamp(1.2rem,4vw,3rem);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  /* le fond a de la COULEUR et de la profondeur — ce n'est pas un aplat noir */
+  background:
+    radial-gradient(120% 90% at 50% 42%, #1b1740 0%, #0e0b24 42%, #06060f 100%);
+  color:var(--ink);
+  font-family:"Space Grotesk",system-ui,sans-serif;
+  overflow-x:hidden;
+}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;
+  opacity:0;transition:opacity 1.6s ease}
+body.pret #gl{opacity:1}
+
+.wrap{height:300vh;position:relative;z-index:1;pointer-events:none}
+
+.hud{position:fixed;inset:0;z-index:2;padding:var(--pad);
+  display:grid;grid-template-rows:auto 1fr auto;pointer-events:none;
+  opacity:0;transition:opacity 1.8s ease .4s}
+body.pret .hud{opacity:1}
+
+.top{display:flex;justify-content:space-between;align-items:center}
+.mark{font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:500;
+  letter-spacing:.5em;text-transform:uppercase}
+.pill{display:flex;gap:.4rem;pointer-events:auto}
+.pill a{font-size:.56rem;letter-spacing:.34em;text-transform:uppercase;
+  color:var(--dim);text-decoration:none;padding:.62rem 1.1rem;border-radius:999px;
+  border:1px solid rgba(234,231,242,.12);backdrop-filter:blur(14px);
+  transition:color .3s ease,border-color .3s ease}
+.pill a:hover{color:var(--ink);border-color:rgba(234,231,242,.4)}
+.pill a:focus-visible{outline:2px solid #8f7bff;outline-offset:3px}
+
+.bas{align-self:end;display:flex;justify-content:space-between;align-items:end;gap:2rem}
+.say{font-size:clamp(.9rem,1.2vw,1.05rem);line-height:1.8;max-width:30ch;
+  color:rgba(234,231,242,.72)}
+.meta{font-family:"JetBrains Mono",monospace;font-size:.52rem;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--dim);text-align:right}
+
+@media (max-width:640px){
+  .bas{flex-direction:column;align-items:start;gap:1rem}
+  .meta{text-align:left}
+  .mark{font-size:.6rem;letter-spacing:.34em}
+}
+@media (prefers-reduced-motion:reduce){#gl,.hud{transition:none}}
