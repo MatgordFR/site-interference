@@ -1,0 +1,114 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONTRÔLE DE PUBLICATION — site-interference                      posé le 18/08/2026
+#
+# ⛔ POURQUOI. Ce dépôt est publié par GitHub Pages : ce qui casse ici ne casse pas
+#    sur cette machine, ça casse chez le visiteur, et personne ne le voit.
+#
+# ⭐ LE MODE DE PANNE PROPRE À PAGES, celui que ce contrôle existe pour attraper :
+#    une référence `href`/`src` vers un fichier NON VERSIONNÉ. En local le fichier
+#    est là, la page s'affiche parfaitement ; une fois publiée, c'est un 404 muet —
+#    une feuille de style qui ne charge pas, et le site paraît cassé sans une seule
+#    erreur visible dans le dépôt. Le contrôle résout donc chaque référence LOCALE
+#    contre la liste des fichiers **versionnés**, pas contre le disque.
+#
+# ⛔ CE QU'IL NE PROUVE PAS : que la page est belle, ni qu'elle fonctionne. Il ne
+#    l'ouvre pas dans un navigateur. Il dit seulement que rien de ce qu'elle demande
+#    ne manquera à la publication, et que son JavaScript se lit.
+#
+# ⛔ Actions épinglées par SHA complet, jeton de workflow en lecture seule.
+# ═══════════════════════════════════════════════════════════════════════════════
+name: Contrôle de publication
+
+on:
+  push:
+    # ⛔ « master » — LUE sur ce dépôt, pas supposée. Les six ne sont pas d'accord
+    #    entre eux : site-interference est sur master, les cinq autres sur main.
+    branches: [master]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publication-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controle:
+    name: Références, syntaxe, absence de secret
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Installer Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Chaque référence locale mène-t-elle à un fichier VERSIONNÉ ?
+        run: |
+          python3 - <<'PYEOF'
+          import pathlib, re, subprocess, sys
+
+          racine = pathlib.Path(".").resolve()
+          versionnes = set(subprocess.run(["git", "ls-files"],
+                                          capture_output=True, text=True).stdout.split())
+          pages = subprocess.run(["git", "ls-files", "*.html"],
+                                 capture_output=True, text=True).stdout.split()
+          # ⛔ 0 page examinée n'est pas un succès : c'est un contrôle qui n'a rien regardé.
+          if not pages:
+              print("::error::AUCUNE page .html versionnée — ce contrôle n'a rien vérifié")
+              sys.exit(1)
+
+          EXTERNE = ("http://", "https://", "//", "#", "data:", "mailto:", "tel:", "javascript:")
+          casses, vus = [], 0
+          for f in pages:
+              texte = pathlib.Path(f).read_text(encoding="utf-8", errors="replace")
+              for m in re.finditer(r'(?:src|href)\s*=\s*["\']([^"\']+)["\']', texte):
+                  u = m.group(1)
+                  if u.startswith(EXTERNE):
+                      continue
+                  vus += 1
+                  # On coupe la requête et l'ancre : « style.css?v=3 » vise bien style.css.
+                  cible = (racine / pathlib.Path(f).parent / u.split("?")[0].split("#")[0]).resolve()
+                  try:
+                      rel = cible.relative_to(racine).as_posix()
+                  except ValueError:
+                      continue   # sort du dépôt : hors périmètre, on ne juge pas
+                  if rel not in versionnes and not cible.exists():
+                      casses.append(f"{f} → {u}")
+
+          if casses:
+              print("::error::référence(s) vers un fichier NON versionné — 404 une fois publié :")
+              for c in casses:
+                  print("  · " + c)
+              sys.exit(1)
+          print(f"✅ {vus} référence(s) locale(s) sur {len(pages)} page(s) : toutes résolvent")
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a") as s:
+              s.write(f"### ✅ {vus} référence(s) locale(s) résolvent\n")
+          PYEOF
+
+      - name: Le JavaScript se lit-il ?
+        run: |
+          n=0
+          while IFS= read -r f; do
+            node --check "$f" || { echo "::error file=$f::syntaxe invalide"; exit 1; }
+            n=$((n+1))
+          done < <(git ls-files '*.js')
+          echo "✅ $n fichier(s) .js syntaxiquement valides"
+          echo "### ✅ $n fichier(s) .js valides" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Aucun fichier sensible versionné
+        run: |
+          # ⛔ Dépôt PUBLIC servi tel quel : ce qui est versionné est TÉLÉCHARGEABLE.
+          trouve=$(git ls-files | grep -E '(^|/)(\.env.*|.*\.token|.*\.pem|.*\.key|config\.json)$' || true)
+          if [ -n "$trouve" ]; then
+            echo "::error::fichier(s) sensible(s) versionné(s) dans un dépôt PUBLIÉ :"
+            printf '%s\n' "$trouve"
+            exit 1
+          fi
+          echo "✅ aucun fichier sensible versionné"
+          echo "### ✅ aucun fichier sensible versionné" >> "$GITHUB_STEP_SUMMARY"
